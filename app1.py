@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Medical knowledge base (rule-based - no ML dependencies)
+# Medical knowledge base 
 MEDICAL_KNOWLEDGE = {
     'high_risk': {
         'symptoms': ['chest pain', 'shortness of breath', 'severe bleeding', 'unconscious', 'difficulty breathing',
@@ -458,3 +458,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
