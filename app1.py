@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import datetime
+import json
 
 # Page configuration
 st.set_page_config(
@@ -9,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Medical knowledge base 
+# Medical knowledge base (rule-based - no ML dependencies)
 MEDICAL_KNOWLEDGE = {
     'high_risk': {
         'symptoms': ['chest pain', 'shortness of breath', 'severe bleeding', 'unconscious', 'difficulty breathing',
@@ -77,6 +78,30 @@ FIRST_AID = {
     'choking': "Perform Heimlich maneuver, call emergency if not resolved quickly"
 }
 
+# AI Assistant Responses
+AI_ASSISTANT_RESPONSES = {
+    'greeting': [
+        "Hello! I'm your MediGuard AI assistant. How can I help you today? 😊",
+        "Hi there! I'm here to assist with your health questions. What's on your mind? 🩺",
+        "Welcome! I'm your AI health companion. How can I support you today? 🌟"
+    ],
+    'symptoms': {
+        'fever': "For fever: Rest well, drink plenty of fluids, use cool compresses. If fever persists over 102°F or lasts more than 3 days, consult a doctor.",
+        'cough': "For cough: Try honey with warm water, steam inhalation, and stay hydrated. Avoid cold drinks and smoking.",
+        'headache': "For headache: Rest in a quiet, dark room. Apply cold compress to forehead. Stay hydrated and consider over-the-counter pain relief if appropriate.",
+        'pain': "For pain: Rest the affected area. You can use over-the-counter pain relief as directed. If pain is severe or persistent, see a doctor."
+    },
+    'general_advice': [
+        "Remember to stay hydrated and get adequate rest! 💧",
+        "Regular hand washing is one of the best ways to prevent illness! 🧼",
+        "Don't forget to practice good sleep hygiene for better health! 😴",
+        "A balanced diet and regular exercise are key to good health! 🥗"
+    ],
+    'emergency': "I've detected emergency keywords. Please call emergency services (108/112) immediately for life-threatening situations! 🚨",
+    'follow_up': "How are you feeling now? Would you like me to suggest some home care tips?",
+    'unknown': "I'm still learning about that specific concern. For accurate medical advice, please consult with a healthcare professional. Is there anything else I can help with?"
+}
+
 
 class MediGuardAI:
     def assess_symptoms(self, user_symptoms):
@@ -92,10 +117,52 @@ class MediGuardAI:
         # Default to low risk
         return 'low_risk', 'General Discomfort', MEDICAL_KNOWLEDGE['low_risk']['recommendation']
 
+    def chat_response(self, user_message):
+        user_message_lower = user_message.lower()
+
+        # Emergency detection
+        emergency_keywords = ['heart attack', 'stroke', 'dying', 'emergency', 'chest pain', 'can\'t breathe',
+                              'unconscious']
+        if any(keyword in user_message_lower for keyword in emergency_keywords):
+            return AI_ASSISTANT_RESPONSES['emergency']
+
+        # Symptom-specific responses
+        for symptom, response in AI_ASSISTANT_RESPONSES['symptoms'].items():
+            if symptom in user_message_lower:
+                return response + " " + random.choice(AI_ASSISTANT_RESPONSES['general_advice'])
+
+        # Greeting detection
+        greeting_keywords = ['hello', 'hi', 'hey', 'start', 'help']
+        if any(keyword in user_message_lower for keyword in greeting_keywords):
+            return random.choice(AI_ASSISTANT_RESPONSES['greeting'])
+
+        # General health questions
+        health_keywords = ['advice', 'tip', 'suggest', 'recommend']
+        if any(keyword in user_message_lower for keyword in health_keywords):
+            return random.choice(AI_ASSISTANT_RESPONSES['general_advice'])
+
+        # Default response
+        return AI_ASSISTANT_RESPONSES['unknown']
+
+
+def initialize_session():
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = [
+            {"role": "assistant",
+             "message": "👋 Hello! I'm your MediGuard AI assistant. I can help with health questions, symptom advice, and general wellness tips. How can I assist you today?"}
+        ]
+    if 'current_input' not in st.session_state:
+        st.session_state.current_input = ""
+
+
+def add_to_chat(role, message):
+    st.session_state.chat_history.append({"role": role, "message": message})
+
 
 def main():
-    # Initialize the bot
+    # Initialize the bot and session
     medi_guard = MediGuardAI()
+    initialize_session()
 
     # Custom CSS for better styling
     st.markdown("""
@@ -141,6 +208,40 @@ def main():
         border: 2px solid #e9ecef;
         margin: 10px 0;
     }
+    .chat-container {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px 0;
+        max-height: 400px;
+        overflow-y: auto;
+        border: 2px solid #e9ecef;
+    }
+    .user-message {
+        background-color: #007bff;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 18px;
+        margin: 8px 0;
+        text-align: right;
+        max-width: 80%;
+        margin-left: auto;
+        word-wrap: break-word;
+    }
+    .assistant-message {
+        background-color: #e9ecef;
+        color: #333;
+        padding: 12px 16px;
+        border-radius: 18px;
+        margin: 8px 0;
+        text-align: left;
+        max-width: 80%;
+        word-wrap: break-word;
+        border: 1px solid #dee2e6;
+    }
+    .quick-button {
+        margin: 5px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -168,8 +269,8 @@ def main():
         st.stop()
 
     # Main Dashboard
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["🏠 Symptom Checker", "🚑 Emergency Guide", "💊 First Aid", "📱 Health Tools", "ℹ️ About"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+        ["🏠 Symptom Checker", "🤖 AI Assistant", "🚑 Emergency Guide", "💊 First Aid", "📱 Health Tools", "ℹ️ About"])
 
     with tab1:
         # Symptom Checker Section
@@ -227,8 +328,6 @@ def main():
 
         # Analyze button
         if st.button("🔬 Analyze Symptoms with AI", type="primary", use_container_width=True) and user_symptoms:
-            st.session_state.user_symptoms = user_symptoms
-
             with st.spinner("🦠 MediGuard AI is analyzing your symptoms... This may take a few seconds."):
                 # Simulate processing time
                 import time
@@ -294,6 +393,79 @@ def main():
                                 break
 
     with tab2:
+        st.subheader("🤖 MediGuard AI Assistant")
+        st.markdown("Chat with our AI health assistant for instant guidance and support!")
+
+        # Chat container
+        st.markdown("### 💬 Conversation")
+        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
+        # Display chat history
+        for chat in st.session_state.chat_history:
+            if chat["role"] == "user":
+                st.markdown(f'<div class="user-message"><strong>You:</strong> {chat["message"]}</div>',
+                            unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="assistant-message"><strong>MediGuard:</strong> {chat["message"]}</div>',
+                            unsafe_allow_html=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Quick action buttons
+        st.subheader("⚡ Quick Actions")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            if st.button("🤒 Fever Advice", use_container_width=True):
+                add_to_chat("user", "What should I do for fever?")
+                response = medi_guard.chat_response("fever")
+                add_to_chat("assistant", response)
+                st.rerun()
+
+        with col2:
+            if st.button("😫 Headache", use_container_width=True):
+                add_to_chat("user", "I have a headache")
+                response = medi_guard.chat_response("headache")
+                add_to_chat("assistant", response)
+                st.rerun()
+
+        with col3:
+            if st.button("💪 Health Tips", use_container_width=True):
+                add_to_chat("user", "Give me health tips")
+                response = medi_guard.chat_response("health tips")
+                add_to_chat("assistant", response)
+                st.rerun()
+
+        with col4:
+            if st.button("👋 Hello", use_container_width=True):
+                add_to_chat("user", "Hello")
+                response = medi_guard.chat_response("hello")
+                add_to_chat("assistant", response)
+                st.rerun()
+
+        # Chat input
+        st.subheader("💭 Ask a Question")
+        user_input = st.text_input("Type your health question here:",
+                                   placeholder="E.g., What should I do for a cough? How to reduce fever?",
+                                   key="chat_input")
+
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            if st.button("📤 Send Message", use_container_width=True) and user_input:
+                add_to_chat("user", user_input)
+                response = medi_guard.chat_response(user_input)
+                add_to_chat("assistant", response)
+                st.rerun()
+
+        with col2:
+            if st.button("🔄 Clear Chat", use_container_width=True):
+                st.session_state.chat_history = [
+                    {"role": "assistant",
+                     "message": "👋 Hello! I'm your MediGuard AI assistant. How can I help you today?"}
+                ]
+                st.rerun()
+
+    with tab3:
         st.subheader("🚨 Emergency Response Guide")
 
         col1, col2 = st.columns(2)
@@ -344,18 +516,15 @@ def main():
             - Lab Services: ✅
             """)
 
-            if st.button("🔄 Refresh Location", key="refresh_loc"):
-                st.success("Location updated! Showing nearest facilities.")
-
-    with tab3:
+    with tab4:
         st.subheader("💊 First Aid Instructions")
 
         emergency_type = st.selectbox("Select Emergency Type:",
                                       ["Bleeding", "Burns", "Fractures", "Choking", "Heart Attack", "Stroke"])
 
-        if emergency_type in FIRST_AID:
+        if emergency_type.lower() in FIRST_AID:
             st.warning(f"**First Aid for {emergency_type}:**")
-            st.info(FIRST_AID[emergency_type])
+            st.info(FIRST_AID[emergency_type.lower()])
         else:
             st.info("""
             **General First Aid Principles:**
@@ -367,10 +536,7 @@ def main():
             5. **Monitor** - Watch for changes in condition
             """)
 
-        st.subheader("🎥 Video Demonstrations")
-        st.write("First aid video tutorials would be embedded here in full implementation")
-
-    with tab4:
+    with tab5:
         st.subheader("📱 Health & Wellness Tools")
 
         col1, col2 = st.columns(2)
@@ -413,10 +579,10 @@ def main():
 
             if st.session_state.symptom_history:
                 st.write("**Symptom History:**")
-                for entry in st.session_state.symptom_history[-5:]:  # Show last 5
+                for entry in st.session_state.symptom_history[-5:]:
                     st.write(f"- {entry['date']}: {entry['symptom']} ({entry['severity']})")
 
-    with tab5:
+    with tab6:
         st.subheader("ℹ️ About MediGuard AI")
 
         st.markdown("""
@@ -425,35 +591,18 @@ def main():
         **MediGuard AI** is an advanced artificial intelligence system designed to:
 
         - 🔍 **Assess Symptoms** with intelligent analysis
+        - 🤖 **Chat with AI Assistant** for instant guidance
         - 🚨 **Detect Emergencies** with high accuracy  
         - 💊 **Provide First Aid** guidance
         - 📱 **Offer Health Tools** for daily monitoring
-        - 🛡️ **Empower Users** with medical knowledge
-
-        ### How It Works
-
-        1. **Input Symptoms** via multiple methods
-        2. **AI Analysis** using medical knowledge base
-        3. **Risk Assessment** with color-coded alerts
-        4. **Actionable Recommendations** for next steps
-        5. **Emergency Protocols** when needed
-
-        ### Safety First
-
-        - ⚠️ Clear medical disclaimers
-        - 🚨 Emergency detection systems
-        - 📞 Direct emergency contact integration
-        - 💡 Evidence-based recommendations
 
         *Built with ❤️ for better healthcare accessibility*
         """)
 
     # Footer
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    with col2:
-        st.markdown("<p style='text-align: center; color: gray;'>MediGuard AI 🛡️ - Your Health, Our Priority</p>",
-                    unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>MediGuard AI 🛡️ - Your Health, Our Priority</p>",
+                unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
